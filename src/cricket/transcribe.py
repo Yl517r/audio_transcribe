@@ -30,7 +30,13 @@ def convert_audio(input_file, output_file):
 
 
 def conversation_transcriber_recognition_canceled_cb(evt: speechsdk.SessionEventArgs):
-    print('Canceled event')
+    print(f"Canceled event: {evt}")
+    if evt.result.reason == speechsdk.ResultReason.Canceled:
+        cancellation_details = evt.result.cancellation_details
+        print(f"Cancellation reason: {cancellation_details.reason}")
+        if cancellation_details.reason == speechsdk.CancellationReason.Error:
+            print(f"Cancellation error details: {cancellation_details.error_details}")
+            print(f"Cancellation error code: {cancellation_details.error_code}")
 
 
 def conversation_transcriber_session_stopped_cb(evt: speechsdk.SessionEventArgs):
@@ -38,20 +44,14 @@ def conversation_transcriber_session_stopped_cb(evt: speechsdk.SessionEventArgs)
 
 
 def conversation_transcriber_transcribed_cb(evt: speechsdk.SpeechRecognitionEventArgs):
-    try:
-        if evt.result.reason == speechsdk.ResultReason.RecognizedSpeech and evt.result.text.strip() != '':
-            speaker_id = "Speaker-{}".format(
-                evt.result.speaker_id) if evt.result.speaker_id != "Unknown" else "Unknown Speaker"
-            transcribed_text = '{}: {}'.format(speaker_id, evt.result.text)
-            print(transcribed_text)
-            transcriptions.append(transcribed_text)
-        elif evt.result.reason == speechsdk.ResultReason.NoMatch:
-            print('NOMATCH: Speech could not be transcribed: {}'.format(evt.result.no_match_details))
-        else:
-            print('UNKNOWN: Unexpected result reason: {}'.format(evt.result.reason))
-
-    except Exception as e:
-        print('Error occurred during transcription: {}'.format(e))
+    if evt.result.reason == speechsdk.ResultReason.RecognizedSpeech and evt.result.text.strip() != '':
+        speaker_id = "Speaker-{}".format(
+            evt.result.speaker_id) if evt.result.speaker_id != "Unknown" else "Unknown Speaker"
+        transcribed_text = '{}: {}'.format(speaker_id, evt.result.text)
+        print(transcribed_text)
+        transcriptions.append(transcribed_text)
+    elif evt.result.reason == speechsdk.ResultReason.NoMatch:
+        print('NOMATCH: Speech could not be transcribed: {}'.format(evt.result.no_match_details))
 
 
 def conversation_transcriber_session_started_cb(evt: speechsdk.SessionEventArgs):
@@ -61,7 +61,7 @@ def conversation_transcriber_session_started_cb(evt: speechsdk.SessionEventArgs)
 def recognize_from_file(input_file, output_file):
     try:
         speech_config = speechsdk.SpeechConfig(subscription=subscription_key, region=region)
-        speech_config.speech_recognition_language = "es-ES"
+        # speech_config.speech_recognition_language = "es-ES"
 
         audio_config = speechsdk.audio.AudioConfig(filename=input_file)
         conversation_transcriber = speechsdk.transcription.ConversationTranscriber(speech_config=speech_config,
@@ -84,22 +84,20 @@ def recognize_from_file(input_file, output_file):
     conversation_transcriber.session_stopped.connect(stop_cb)
     conversation_transcriber.canceled.connect(stop_cb)
 
-    try:
-        start_time = time.time()  # Record start time
+    start_time = time.time()  # Record start time
 
-        future = conversation_transcriber.start_transcribing_async()
-        future.get()
+    future = conversation_transcriber.start_transcribing_async()
 
-        while not transcribing_stop:
-            time.sleep(.5)
+    future.get()
 
-        conversation_transcriber.stop_transcribing_async()
+    while not transcribing_stop:
+        time.sleep(.5)
 
-        end_time = time.time()  # Record end time
+    conversation_transcriber.stop_transcribing_async()
 
-        print(f"Transcribing time for {input_file}: {end_time - start_time} seconds")  # Print elapsed time
-    except Exception as e:
-        print(f"Failed to transcribe file {input_file}. Error: {e}")
+    end_time = time.time()  # Record end time
+
+    print(f"Transcribing time for {input_file}: {end_time - start_time} seconds")  # Print elapsed time
 
     return "\n".join(transcriptions)
 
